@@ -1,23 +1,18 @@
 USE [WideWorldImporters]; -- Your database here.
-
 /*********************
  * Drop Tables
  *********************/
-
 IF SCHEMA_ID(N'Clubs') IS NULL
    EXEC(N'CREATE SCHEMA [Clubs];');
 GO
-
 DROP TABLE IF EXISTS Clubs.MeetingAttendee;
 DROP TABLE IF EXISTS Clubs.Attendee;
 DROP TABLE IF EXISTS Clubs.Meeting;
 DROP TABLE IF EXISTS Clubs.Club;
 GO
-
 /******************
  * Create Tables
  ******************/
-
 CREATE TABLE Clubs.Club
 (
    ClubId INT NOT NULL IDENTITY(1, 1) PRIMARY KEY,
@@ -26,7 +21,6 @@ CREATE TABLE Clubs.Club
    CreatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET()),
    UpdatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET())
 );
-
 CREATE TABLE Clubs.Meeting
 (
    MeetingId INT NOT NULL IDENTITY(1, 1) PRIMARY KEY,
@@ -36,10 +30,8 @@ CREATE TABLE Clubs.Meeting
    [Location] NVARCHAR(64) NOT NULL,
    CreatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET()),
    UpdatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET()),
-
    UNIQUE(ClubId, MeetingTime)
 );
-
 CREATE TABLE Clubs.Attendee
 (
    AttendeeId INT NOT NULL IDENTITY(1, 1) PRIMARY KEY,
@@ -49,7 +41,6 @@ CREATE TABLE Clubs.Attendee
    CreatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET()),
    UpdatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET())
 );
-
 CREATE TABLE Clubs.MeetingAttendee
 (
    MeetingId INT NOT NULL FOREIGN KEY
@@ -57,10 +48,8 @@ CREATE TABLE Clubs.MeetingAttendee
    AttendeeId INT NOT NULL FOREIGN KEY
       REFERENCES Clubs.Attendee(AttendeeId),
    CreatedOn DATETIMEOFFSET NOT NULL DEFAULT(SYSDATETIMEOFFSET()),
-
    PRIMARY KEY(MeetingId, AttendeeId)
 );
-
 
 
 -- Question 1
@@ -75,8 +64,6 @@ FROM (VALUES ('ACM','Engineering Building 1114', '2018-10-09 18:30:00'), ('ACM',
 		M([Name], [Location],MeetingTime)
 		INNER JOIN Clubs.Club C ON C.Name = M.Name
 GO
-
-SELECT * FROM Clubs.Club
 --Question 2
 
 INSERT INTO Clubs.Attendee
@@ -100,7 +87,31 @@ FROM Clubs.Meeting Attendee
 
 UPDATE Clubs.Meeting
 SET Location = 'Business Building 4001' , UpdatedOn = SYSDATETIMEOFFSET()
-WHERE ClubId = (SELECT C.ClubId FROM Clubs.Club C WHERE C.Name = 'MIS Club') AND MeetingTime = '2018-12-04 18:00:00' AND Location <> 'Business Building 4001' 
+WHERE ClubId = (SELECT C.ClubId FROM Clubs.Club C WHERE C.Name = 'MIS Club') AND MeetingTime = '2018-12-04 18:00:00' AND Location <> 'Business Building 4001'
 
 -- Question 4
 
+WITH SourceCTE (ClubId, MeetingTime, Location) AS
+( SELECT C.ClubId, M.MeetingTime, M.Location
+      FROM (VALUES 
+      ('ACM','Engineering Building 1121', '2018-11-13 18:30:00'),
+      ('ACM','Engineering Building 1121', '2019-02-12 18:30:00'),
+      ('MIS Club', 'Business Building 4001', '2018-12-04 18:00:00'),
+      ('MIS Club', 'Business Building 4001', '2019-02-04 18:00:00'))
+         M(Name, Location, MeetingTime)
+            INNER JOIN Clubs.Club C ON C.Name = M.Name)
+MERGE Clubs.Meeting M
+USING SourceCTE S ON S.ClubId = M.ClubId
+   AND S.MeetingTime = M.MeetingTime
+WHEN MATCHED AND 
+(S.Location <> M.Location 
+OR S.MeetingTime <> M.MeetingTime)
+THEN
+	UPDATE
+	SET
+      MeetingTime = S.MeetingTime,
+      Location = S.Location,
+      UpdatedOn = SYSDATETIMEOFFSET()
+WHEN NOT MATCHED THEN
+	INSERT(ClubId, MeetingTime, Location)
+	VALUES(S.ClubId, S.MeetingTime, S.Location);
